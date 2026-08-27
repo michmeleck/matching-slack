@@ -1,7 +1,6 @@
 {
-  "requiredColumns": ["handle", "platform", "url"],
-  "optionalColumns": ["email", "notes"],
-  "uniqueColumns": ["handle"],
-  "allowedPlatforms": ["instagram", "tiktok", "youtube", "twitter", "x"],
+  "requiredColumns": ["email"],
+  "optionalColumns": [],
+  "uniqueColumns": ["email"],
   "maxRows": 5000
 }

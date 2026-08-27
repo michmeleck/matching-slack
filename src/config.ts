@@ -5,7 +5,6 @@ export interface ValidationConfig {
   requiredColumns: string[];
   optionalColumns: string[];
   uniqueColumns: string[];
-  allowedPlatforms: string[];
   maxRows: number;
 }
 

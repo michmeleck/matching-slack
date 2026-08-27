@@ -46,10 +46,16 @@ alive with your usual process manager (systemd, pm2, a container restart policy)
 
 ## Validation config
 
+The expected format is a single-column CSV: a header row containing exactly
+`email`, followed by one email address per row, with no blank rows or extra
+whitespace in between.
+
 `config/validation.json`:
 
-- `requiredColumns` — columns that must exist and be non-empty on every row.
-- `optionalColumns` — documented but not enforced.
-- `uniqueColumns` — columns checked for duplicate values across rows.
-- `allowedPlatforms` — accepted values for a `platform` column, if present.
+- `requiredColumns` — must be `["email"]`; the header must contain exactly
+  this one column.
 - `maxRows` — upper bound on row count before the file is rejected.
+
+The validator flags, per row: blank rows, more than one value on a line,
+leading/trailing or internal whitespace, an invalid email format, and
+duplicate emails.

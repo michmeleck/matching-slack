@@ -1,4 +1,3 @@
-import Papa from "papaparse";
 import { ValidationConfig } from "./config";
 
 export interface ValidationResult {
@@ -7,75 +6,80 @@ export interface ValidationResult {
   errors: string[];
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function validateCsv(csvText: string, config: ValidationConfig): ValidationResult {
   const errors: string[] = [];
+  const expectedColumn = config.requiredColumns[0] ?? "email";
 
-  const parsed = Papa.parse<Record<string, string>>(csvText, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h) => h.trim().toLowerCase(),
+  const lines = csvText.split(/\r\n|\r|\n/);
+  // A trailing newline produces one empty "line" at the end — that's not a blank row, drop it.
+  if (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+
+  if (lines.length === 0) {
+    return { valid: false, rowCount: 0, errors: ["File is empty."] };
+  }
+
+  const header = lines[0];
+  const headerColumns = header.split(",").map((c) => c.trim().toLowerCase());
+
+  if (headerColumns.length !== 1 || headerColumns[0] !== expectedColumn) {
+    errors.push(
+      `Header row must contain exactly one column named "${expectedColumn}" (found: "${header}").`
+    );
+    return { valid: false, rowCount: 0, errors };
+  }
+
+  const dataLines = lines.slice(1);
+  const seen = new Set<string>();
+  let rowCount = 0;
+
+  dataLines.forEach((line, index) => {
+    const rowNum = index + 2; // +1 for header row, +1 for 1-indexing
+
+    if (line.trim() === "") {
+      errors.push(`Row ${rowNum}: blank row — no blank rows are allowed between entries.`);
+      return;
+    }
+
+    if (line.includes(",")) {
+      errors.push(`Row ${rowNum}: "${line}" has more than one value — only one email per row is allowed.`);
+      return;
+    }
+
+    if (line !== line.trim()) {
+      errors.push(`Row ${rowNum}: "${line}" has leading or trailing whitespace.`);
+      return;
+    }
+
+    if (/\s/.test(line)) {
+      errors.push(`Row ${rowNum}: "${line}" contains whitespace inside the value.`);
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(line)) {
+      errors.push(`Row ${rowNum}: "${line}" is not a valid email address.`);
+      return;
+    }
+
+    const normalized = line.toLowerCase();
+    if (seen.has(normalized)) {
+      errors.push(`Row ${rowNum}: duplicate email "${line}".`);
+      return;
+    }
+    seen.add(normalized);
+    rowCount++;
   });
 
-  if (parsed.errors.length > 0) {
-    for (const err of parsed.errors) {
-      errors.push(`Row ${err.row ?? "?"}: ${err.message}`);
-    }
-  }
-
-  const rows = parsed.data;
-  const columns = parsed.meta.fields ?? [];
-
-  for (const col of config.requiredColumns) {
-    if (!columns.includes(col)) {
-      errors.push(`Missing required column: "${col}"`);
-    }
-  }
-
-  // Stop early if columns are already broken — row-level checks would be noise.
-  if (errors.length > 0) {
-    return { valid: false, rowCount: rows.length, errors };
-  }
-
-  if (rows.length === 0) {
+  if (rowCount === 0 && errors.length === 0) {
     errors.push("File has no data rows.");
   }
 
-  if (rows.length > config.maxRows) {
-    errors.push(`File has ${rows.length} rows, which exceeds the max of ${config.maxRows}.`);
+  if (rowCount > config.maxRows) {
+    errors.push(`File has ${rowCount} rows, which exceeds the max of ${config.maxRows}.`);
   }
 
-  const seen: Record<string, Set<string>> = {};
-  for (const col of config.uniqueColumns) {
-    seen[col] = new Set();
-  }
-
-  rows.forEach((row, index) => {
-    const rowNum = index + 2; // +1 for header, +1 for 1-indexing
-
-    for (const col of config.requiredColumns) {
-      const value = (row[col] ?? "").trim();
-      if (!value) {
-        errors.push(`Row ${rowNum}: missing value for required column "${col}"`);
-      }
-    }
-
-    const platform = (row["platform"] ?? "").trim().toLowerCase();
-    if (platform && !config.allowedPlatforms.includes(platform)) {
-      errors.push(
-        `Row ${rowNum}: unrecognized platform "${row["platform"]}" (allowed: ${config.allowedPlatforms.join(", ")})`
-      );
-    }
-
-    for (const col of config.uniqueColumns) {
-      const value = (row[col] ?? "").trim().toLowerCase();
-      if (!value) continue;
-      if (seen[col].has(value)) {
-        errors.push(`Row ${rowNum}: duplicate value "${row[col]}" in column "${col}"`);
-      } else {
-        seen[col].add(value);
-      }
-    }
-  });
-
-  return { valid: errors.length === 0, rowCount: rows.length, errors };
+  return { valid: errors.length === 0, rowCount, errors };
 }
