@@ -2,7 +2,8 @@ import "dotenv/config";
 import { App } from "@slack/bolt";
 import { env, loadValidationConfig } from "./config";
 import { validateCsv } from "./validateCsv";
-import { createLinearTicket } from "./linear";
+import { createMatchingRequestTicket } from "./linear";
+import { parseClientInfo } from "./clientInfo";
 
 const validationConfig = loadValidationConfig();
 
@@ -54,28 +55,34 @@ app.event("file_shared", async ({ event, client, logger }) => {
       return;
     }
 
+    const commentText = file.initial_comment?.comment ?? "";
+    const { info: clientInfo, missing } = parseClientInfo(commentText);
+
+    if (!clientInfo) {
+      await client.chat.postMessage({
+        channel: channelId,
+        thread_ts: threadTs,
+        text: `:white_check_mark: *${file.name}* passed CSV validation (${result.rowCount} rows), but I'm missing client info needed for the Linear ticket: ${missing.join(", ")}.\nPlease reply in this thread with all of: \`Client: <name>\`, \`User ID: ...\`, \`Company ID: ...\`, \`Email: ...\` and re-share the file.`,
+      });
+      return;
+    }
+
     await client.chat.postMessage({
       channel: channelId,
       thread_ts: threadTs,
       text: `:white_check_mark: *${file.name}* passed validation (${result.rowCount} rows). Creating Linear ticket…`,
     });
 
-    const uploaderId = file.user;
-    const uploaderName = uploaderId
-      ? (await client.users.info({ user: uploaderId })).user?.real_name ?? uploaderId
-      : "unknown";
+    if (!file.permalink) {
+      throw new Error("Slack did not provide a permalink for this file.");
+    }
 
-    const ticket = await createLinearTicket({
+    const ticket = await createMatchingRequestTicket({
       apiKey: env.linearApiKey,
-      teamId: env.linearTeamId,
-      title: `Process creator list: ${file.name}`,
-      description: [
-        `Validated CSV uploaded to Slack by ${uploaderName}.`,
-        `Rows: ${result.rowCount}`,
-        file.permalink ? `Slack file: ${file.permalink}` : undefined,
-      ]
-        .filter(Boolean)
-        .join("\n"),
+      client: clientInfo,
+      fileName: file.name ?? "creators.csv",
+      fileUrl: file.permalink,
+      rowCount: result.rowCount,
     });
 
     await client.chat.postMessage({

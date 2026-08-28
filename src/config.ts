@@ -22,7 +22,6 @@ export const env = {
   slackSigningSecret: required("SLACK_SIGNING_SECRET"),
   watchedChannelId: required("SLACK_WATCHED_CHANNEL_ID"),
   linearApiKey: required("LINEAR_API_KEY"),
-  linearTeamId: required("LINEAR_TEAM_ID"),
 };
 
 export function loadValidationConfig(): ValidationConfig {
