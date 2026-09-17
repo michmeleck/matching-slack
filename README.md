@@ -53,9 +53,13 @@ subscription in one step:
 ## Deployment
 
 Because this uses Socket Mode, there's no inbound port to expose — deploy it as a
-plain long-running Node process on whatever always-on host you have (a small VM,
-a Docker container on your existing infra, Render/Fly/Railway, etc.) and keep it
+plain long-running Node process on whatever always-on host you have and keep it
 alive with your usual process manager (systemd, pm2, a container restart policy).
+
+For a free, always-on option with no internal infra required, see
+[`deploy/ORACLE_CLOUD_SETUP.md`](deploy/ORACLE_CLOUD_SETUP.md) — Oracle Cloud's
+Always Free tier (a real VM, free indefinitely) plus a ready-to-use systemd
+service file (`deploy/matching-slack.service`).
 
 ## Validation config
 
